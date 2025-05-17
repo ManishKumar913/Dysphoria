@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".Feedback">
+
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="600dp"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+
+        />
+    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_marginStart="600dp">
+
+        <!-- Speed Label -->
+        <TextView
+            android:id="@+id/speedLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="Speed"
+            android:layout_alignParentLeft="true"
+            android:layout_marginTop="16dp"
+            android:textSize="16sp"
+            android:layout_marginStart="20dp"/>
+
+        <!-- Speed SeekBar -->
+        <SeekBar
+            android:id="@+id/speed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/speedLabel"
+            android:layout_marginTop="8dp"/>
+
+        <!-- Engine Temperature Label -->
+        <TextView
+            android:id="@+id/engineTempLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="Engine Temperature"
+            android:layout_below="@id/speed"
+            android:layout_marginTop="16dp"
+            android:textSize="16sp"
+            android:layout_marginStart="20dp"/>
+
+        <!-- Engine Temperature SeekBar -->
+        <SeekBar
+            android:id="@+id/engineTemp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/engineTempLabel"
+            android:layout_marginTop="8dp"/>
+
+        <!-- Tyre Pressure Label -->
+        <TextView
+            android:id="@+id/tyrePressureLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="Tyre Pressure"
+            android:layout_below="@id/engineTemp"
+            android:layout_marginTop="16dp"
+            android:textSize="16sp"
+            android:layout_marginStart="20dp"/>
+
+        <!-- Tyre Pressure SeekBar -->
+        <SeekBar
+            android:id="@+id/tyrePressure"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tyrePressureLabel"
+            android:layout_marginTop="8dp"/>
+
+        <!-- Fuel Label -->
+        <TextView
+            android:id="@+id/fuelLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="Fuel"
+            android:layout_below="@id/tyrePressure"
+            android:layout_marginTop="16dp"
+            android:textSize="16sp"
+            android:layout_marginStart="20dp"/>
+
+        <!-- Fuel SeekBar -->
+        <SeekBar
+            android:id="@+id/fuel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/fuelLabel"
+            android:layout_marginTop="8dp"
+            />
+
+    </RelativeLayout>
+
+</RelativeLayout>
