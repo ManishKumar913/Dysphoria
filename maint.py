@@ -1,8 +1,13 @@
+import asyncio
+import websockets
 import cv2
+import base64
 import numpy as np
 import time
+import json
+import threading
 
-# === Load Pretrained MobileNet-SSD ===
+
 net = cv2.dnn.readNetFromCaffe("MobileNetSSD_deploy.prototxt", "MobileNetSSD_deploy.caffemodel")
 CLASSES = [
     "background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair",
@@ -10,7 +15,7 @@ CLASSES = [
     "sofa", "train", "tvmonitor"
 ]
 
-# === Lane Detection ===
+
 def detect_lanes(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, 50, 150)
@@ -24,7 +29,7 @@ def detect_lanes(frame):
                 right += 1
     return left > 0, right > 0
 
-# === Object Detection ===
+
 def detect_objects(frame):
     h, w = frame.shape[:2]
     blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 0.007843, (300, 300), 127.5)
@@ -40,7 +45,7 @@ def detect_objects(frame):
                 detected.append(label)
     return detected
 
-# === Speed Estimation ===
+
 def estimate_speed(prev, curr):
     if prev is None:
         return 0
@@ -49,55 +54,79 @@ def estimate_speed(prev, curr):
     flow = cv2.calcOpticalFlowFarneback(prev_gray, curr_gray, None,
                                         0.5, 3, 15, 3, 5, 1.2, 0)
     mag, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
-    return np.mean(mag) * 10  # Scaling for interpretability
+    return np.mean(mag) * 10  
 
-# === Safe Speed Recommendation ===
+
 def recommend_safe_speed(current_speed, detected_objs):
     base = 60
     if "person" in detected_objs or "car" in detected_objs:
         return max(20, base - current_speed * 2)
     return max(30, base - current_speed)
 
-# === Main Loop ===
-cap = cv2.VideoCapture(0)
-prev_frame = None
-prev_left, prev_right = True, True
-frame_id = 0
 
-try:
+latest_data = {"json": "{}"}
+
+
+def vision_loop():
+    cap = cv2.VideoCapture(0)
+    prev_frame = None
+    prev_left, prev_right = True, True
+
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
-        frame = cv2.resize(frame, (320, 240))  # Reduce resolution to lower load
+        frame = cv2.resize(frame, (320, 240))  
 
-        # Lane detection
+        
         left_lane, right_lane = detect_lanes(frame)
         lane_changed = (prev_left and prev_right) and (not left_lane or not right_lane)
         prev_left, prev_right = left_lane, right_lane
 
-        # Object detection
+        
         detected_objects = detect_objects(frame)
 
-        # Speed estimation
+        
         speed = estimate_speed(prev_frame, frame)
         prev_frame = frame.copy()
 
-        # Safe speed logic
+        
         safe_speed = recommend_safe_speed(speed, detected_objects)
 
-        # === Console Output ===
-        print(f"\nFrame {frame_id}")
-        print(f"  Detected Objects       : {detected_objects}")
-        print(f"  Lane Change Detected   : {'Yes' if lane_changed else 'No'}")
-        print(f"  Estimated Movement     : {speed:.2f}")
-        print(f"  Recommended Safe Speed : {safe_speed:.0f} km/h")
+        data = {
+            "detected_objects": detected_objects,
+            "lane_change_detected": lane_changed,
+            "estimated_movement": round(speed, 2),
+            "recommended_safe_speed_kmh": round(safe_speed)
+        }
 
-        frame_id += 1
-        time.sleep(0.2)  # slight delay to reduce CPU load
+        latest_data["json"] = json.dumps(data, indent=2)
+        print(latest_data["json"])
+        
+        time.sleep(0.2) 
+    cap.release()
 
-except KeyboardInterrupt:
-    print("\n🛑 Stopped by user.")
 
-cap.release()
+async def video_stream(websocket, path):
+    try:
+        while True:
+            await websocket.send(latest_data["json"])
+            await asyncio.sleep(0.05)  
+    except websockets.ConnectionClosed:
+        print("Client disconnected")
+    finally:
+      cap.release()
+
+async def main():
+    server = await websockets.serve(video_stream, "192.168.56.92", 8765)
+    print("WebSocket server started on ws://192.168.56.92:8765")
+    await server.wait_closed()
+
+if __name__ == "__main__":
+
+    t = threading.Thread(target=vision_loop, daemon=True)
+    t.start()
+
+    asyncio.run(main())
+            
