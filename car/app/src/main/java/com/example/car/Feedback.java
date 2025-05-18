@@ -1,6 +1,8 @@
 package com.example.car;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.RectF;
@@ -20,27 +22,34 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+
 import okhttp3.WebSocket;
-import okhttp3.WebSocketListener;
-import okio.ByteString;
-//import tech.gusavila92.websocketclient.WebSocketClient;
+
 
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.tensorflow.lite.Interpreter;
-import org.tensorflow.lite.support.common.FileUtil;
 
 public class Feedback extends AppCompatActivity {
     private WebSocket ws;
@@ -57,7 +66,11 @@ public class Feedback extends AppCompatActivity {
     private ImageView imageView;
     private TextView resultView;
     private SeekBar sks,skt,skf,skp;
-    private TextView ts,tt,tf,tp;
+    private TextView ts,tt,tf,tp,text,text3 ;
+
+    private float s, p, t,f;
+    private Timer timer = new Timer();
+    String op,ad;
 
 
 
@@ -65,6 +78,9 @@ public class Feedback extends AppCompatActivity {
 
 
 
+
+
+    @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -84,22 +100,63 @@ public class Feedback extends AppCompatActivity {
         tp=findViewById(R.id.tyrePressureLabel);
         ts=findViewById(R.id.speedLabel);
         tf=findViewById(R.id.fuelLabel);
+        text=findViewById(R.id.textView2);
+        text3=findViewById(R.id.textView3);
 
         connectWebSocket();
-        manualSensorInput();
+
+
+        Timer timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                manualSensorInput();
+                loadModel();
+                runOnUiThread(() -> {
+                    runMl( s, p , t,  f);
+                    text.setText(op+"\n"+ad);
+
+                });
+            }
+        }, 0, 1000);
 
 
 
-//        // Run object detection
-//        List<DetectionResult> results = detectObjects(bitmap);
-//
-//        // Display results
-//        StringBuilder resultText = new StringBuilder();
-//        for (DetectionResult result : results) {
-//            resultText.append(String.format("%s: %.2f%%\n", result.label, result.confidence * 100));
-//        }
-//        resultView.setText(resultText.toString());
+
+
+//        String output = CameraMl.processFrame(bitmap);
+//        Log.d("DriverAssist", output);
+
     }
+
+
+    void runMl(float s,float p ,float t, float f) {
+
+        float[] input = {s, p, f, t};
+
+        float[][] output = new float[1][5];
+
+
+        tflite.run(input, output);
+        Log.d("DriverAssist", Arrays.toString(output));
+
+    }
+
+    private void loadModel() {
+        try {
+            AssetFileDescriptor fileDescriptor = getAssets().openFd("driver_feedback_model.tflite");
+            FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
+            FileChannel fileChannel = inputStream.getChannel();
+            long startOffset = fileDescriptor.getStartOffset();
+            long declaredLength = fileDescriptor.getDeclaredLength();
+            MappedByteBuffer model = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
+            tflite = new Interpreter(model);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
 
     void manualSensorInput(){
 
@@ -107,6 +164,8 @@ public class Feedback extends AppCompatActivity {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 tt.setText("Engine Temp -> "+ progress);
+                t=progress;
+
             }
 
             @Override
@@ -122,6 +181,7 @@ public class Feedback extends AppCompatActivity {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 ts.setText("Speed -> "+ progress);
+                s=progress;
             }
 
             @Override
@@ -138,6 +198,7 @@ public class Feedback extends AppCompatActivity {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 tp.setText("Tyre Presure -> "+ progress);
+                p=progress;
             }
 
             @Override
@@ -154,6 +215,7 @@ public class Feedback extends AppCompatActivity {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 tf.setText("Fuel capcity -> "+ progress);
+                f=progress;
             }
 
             @Override
@@ -169,79 +231,7 @@ public class Feedback extends AppCompatActivity {
 
     }
 
-//    private List<DetectionResult> detectObjects(Bitmap bitmap) {
-//        Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, INPUT_SIZE, INPUT_SIZE, false);
-//        ByteBuffer inputBuffer = convertBitmapToByteBuffer(resizedBitmap);
-//
-//        // Define output buffer
-//        // Adjust the output shape and data type based on your model's output
-//        float[][][] output = new float[1][25200][85]; // Example shape for YOLOv8n
-//
-//        tflite.run(inputBuffer, output);
-//
-//        // Post-processing to extract detection results
-//        return parseDetectionResult(output[0]);
-//    }
-//
-//    private ByteBuffer convertBitmapToByteBuffer(Bitmap bitmap)     {
-//        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(1 * INPUT_SIZE * INPUT_SIZE * 3 * 4);
-//        byteBuffer.order(ByteOrder.nativeOrder());
-//        int[] intValues = new int[INPUT_SIZE * INPUT_SIZE];
-//        bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
-//        int pixel = 0;
-//        for (int i = 0; i < INPUT_SIZE; ++i) {
-//            for (int j = 0; j < INPUT_SIZE; ++j) {
-//                final int val = intValues[pixel++];
-//                byteBuffer.putFloat((((val >> 16) & 0xFF) / 255.0f));
-//                byteBuffer.putFloat((((val >> 8) & 0xFF) / 255.0f));
-//                byteBuffer.putFloat(((val & 0xFF) / 255.0f));
-//            }
-//        }
-//        return byteBuffer;
-//    }
-//
-//    private List<DetectionResult> parseDetectionResult(float[][] detections) {
-//        List<DetectionResult> results = new ArrayList<>();
-//        for (float[] detection : detections) {
-//            float confidence = detection[4];
-//            if (confidence > 0.5) { // Confidence threshold
-//                float maxClass = 0;
-//                int classId = -1;
-//                for (int i = 5; i < detection.length; i++) {
-//                    if (detection[i] > maxClass) {
-//                        maxClass = detection[i];
-//                        classId = i - 5;
-//                    }
-//                }
-//                if (maxClass > 0.5) { // Class probability threshold
-//                    float x = detection[0];
-//                    float y = detection[1];
-//                    float w = detection[2];
-//                    float h = detection[3];
-//                    RectF rect = new RectF(
-//                            x - w / 2,
-//                            y - h / 2,
-//                            x + w / 2,
-//                            y + h / 2
-//                    );
-//                    results.add(new DetectionResult(labels.get(classId), confidence * maxClass, rect));
-//                }
-//            }
-//        }
-//        return results;
-//    }
-//
-//    private static class DetectionResult {
-//        String label;
-//        float confidence;
-//        RectF location;
-//
-//        DetectionResult(String label, float confidence, RectF location) {
-//            this.label = label;
-//            this.confidence = confidence;
-//            this.location = location;
-//        }
-//    }
+
     private void connectWebSocket() {
         im= findViewById(R.id.imageView);
         URI uri;
@@ -255,15 +245,19 @@ public class Feedback extends AppCompatActivity {
         webSocketClient = new WebSocketClient(uri) {
             @Override
             public void onOpen(ServerHandshake handshake) {
-                // Connection opened
+
             }
 
             @Override
             public void onMessage(String message) {
+                try {
+                    JSONObject json = new JSONObject(message);
+                    runOnUiThread(() -> text3.setText(String.valueOf(json)));
 
-                byte[] decodedBytes = Base64.decode(message, Base64.DEFAULT);
-                bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
-                runOnUiThread(() -> im.setImageBitmap(bitmap));
+                } catch (JSONException e) {
+                    throw new RuntimeException(e);
+                }
+
             }
 
             @Override
